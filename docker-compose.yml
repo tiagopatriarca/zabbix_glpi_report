@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  zabbix-glpi-reporter:
+    build: .
+    container_name: relatorio_zabbix_glpi
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mapeia o arquivo de configuração para fora do container para não perder as senhas ao recriar
+      - ./config.json:/app/config.json
+    restart: unless-stopped
