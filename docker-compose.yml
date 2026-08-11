@@ -7,6 +7,9 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      # Mapeia uma pasta inteira de dados para garantir que o Docker não crie como diretório o arquivo config.json
-      - ./data:/app/data
+      # Usando Named Volume gerenciado pelo Docker (muito mais seguro contra erros de permissão em hospedagens)
+      - app_data:/app/data
     restart: unless-stopped
+
+volumes:
+  app_data:
