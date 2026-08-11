@@ -2,9 +2,12 @@ import streamlit as st
 import json
 import os
 
-CONFIG_FILE = "config.json"
+CONFIG_DIR = "data"
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
 def load_config():
+    if not os.path.exists(CONFIG_DIR):
+        os.makedirs(CONFIG_DIR)
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as f:
             return json.load(f)

@@ -7,6 +7,6 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      # Mapeia o arquivo de configuração para fora do container para não perder as senhas ao recriar
-      - ./config.json:/app/config.json
+      # Mapeia uma pasta inteira de dados para garantir que o Docker não crie como diretório o arquivo config.json
+      - ./data:/app/data
     restart: unless-stopped
