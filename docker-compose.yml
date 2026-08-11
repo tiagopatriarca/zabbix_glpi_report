@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   zabbix-glpi-reporter:
-    build: .
+    image: ghcr.io/tiagopatriarca/zabbix_glpi_report:latest
     container_name: relatorio_zabbix_glpi
     ports:
       - "8501:8501"
