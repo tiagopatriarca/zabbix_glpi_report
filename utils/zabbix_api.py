@@ -48,26 +48,44 @@ class ZabbixClient:
             hostids=hostid,
             time_from=int(time_from.timestamp()),
             time_till=int(time_till.timestamp()),
-            output=["eventid", "name", "clock", "severity"],
-            select_r_event=["clock"],
+            output=["eventid", "objectid", "name", "clock", "severity", "value"],
             source=0, # events created by a trigger
             object=0, # trigger
-            value=1   # Only problems
+            sortfield="clock",
+            sortorder="ASC"
         )
         
+        active_problems = {}
         history = []
+        
         for e in events:
-            start_time = datetime.fromtimestamp(int(e["clock"])).strftime('%d/%m/%Y %H:%M:%S')
-            end_time = "Ainda ativo"
-            if "r_event" in e and e["r_event"]:
-                end_time = datetime.fromtimestamp(int(e["r_event"]["clock"])).strftime('%d/%m/%Y %H:%M:%S')
-                
+            obj_id = e["objectid"]
+            if str(e["value"]) == "1": # Problema
+                active_problems[obj_id] = e
+            elif str(e["value"]) == "0": # Resolução
+                if obj_id in active_problems:
+                    prob = active_problems.pop(obj_id)
+                    start_time = datetime.fromtimestamp(int(prob["clock"])).strftime('%d/%m/%Y %H:%M:%S')
+                    end_time = datetime.fromtimestamp(int(e["clock"])).strftime('%d/%m/%Y %H:%M:%S')
+                    history.append({
+                        "Alerta": prob["name"],
+                        "Severidade": self._map_priority(prob["severity"]),
+                        "Início": start_time,
+                        "Fim": end_time
+                    })
+                    
+        # Alertas que não tiveram evento de resolução dentro do período buscado
+        for obj_id, prob in active_problems.items():
+            start_time = datetime.fromtimestamp(int(prob["clock"])).strftime('%d/%m/%Y %H:%M:%S')
             history.append({
-                "Alerta": e["name"],
-                "Severidade": self._map_priority(e["severity"]),
+                "Alerta": prob["name"],
+                "Severidade": self._map_priority(prob["severity"]),
                 "Início": start_time,
-                "Fim": end_time
+                "Fim": "Ainda ativo"
             })
+            
+        # Ordenar o histórico para exibir os mais recentes primeiro
+        history.sort(key=lambda x: x["Início"], reverse=True)
         return history
 
     def get_items_by_key(self, hostid, search_key):
