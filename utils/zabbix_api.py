@@ -44,22 +44,29 @@ class ZabbixClient:
     
     def get_alerts_history(self, hostid, time_from, time_till):
         """Busca histórico de eventos de problemas para o host no período."""
-        # This requires querying events
         events = self.zapi.event.get(
             hostids=hostid,
             time_from=int(time_from.timestamp()),
             time_till=int(time_till.timestamp()),
             output=["eventid", "name", "clock", "severity"],
+            select_r_event=["clock"],
             source=0, # events created by a trigger
-            object=0  # trigger
+            object=0, # trigger
+            value=1   # Only problems
         )
         
         history = []
         for e in events:
+            start_time = datetime.fromtimestamp(int(e["clock"])).strftime('%d/%m/%Y %H:%M:%S')
+            end_time = "Ainda ativo"
+            if "r_event" in e and e["r_event"]:
+                end_time = datetime.fromtimestamp(int(e["r_event"]["clock"])).strftime('%d/%m/%Y %H:%M:%S')
+                
             history.append({
                 "Alerta": e["name"],
                 "Severidade": self._map_priority(e["severity"]),
-                "Data/Hora": datetime.fromtimestamp(int(e["clock"])).strftime('%d/%m/%Y %H:%M:%S')
+                "Início": start_time,
+                "Fim": end_time
             })
         return history
 

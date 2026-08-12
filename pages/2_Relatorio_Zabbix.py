@@ -153,63 +153,59 @@ if generate_btn:
         with col_disk1:
             plot_metric(["Space utilization", "Free disk space", "Used disk space", "Espaço livre", "Espaço utilizado", "Uso de disco", "Disco", "Disk", "vfs.fs"], "Espaço em Disco", chart_type="pie")
             
-        # Linha 3: Placas de Rede (Separado por Interface)
+        # Linha 3: Placas de Rede (Agrupadas por Interface)
         st.markdown("#### Tráfego de Rede")
         
-        # Buscar itens de entrada
-        in_items = []
-        for term in ["Bits received", "Traffic in", "Incoming", "Tráfego de entrada", "Recebido"]:
-            items = zapi.search_items_by_name(selected_host_id, term)
-            if items:
-                in_items.extend(items)
-                break
+        # Agrupar itens de rede por interface
+        network_interfaces = {}
+        net_items = zapi.search_items_by_name(selected_host_id, "Bits received") + zapi.search_items_by_name(selected_host_id, "Bits sent")
+        if not net_items:
+            net_items = zapi.search_items_by_name(selected_host_id, "Traffic in") + zapi.search_items_by_name(selected_host_id, "Traffic out")
+            
+        for item in net_items:
+            # Extrair um nome limpo para agrupar (removendo as palavras padrao)
+            clean_name = item["name"].replace("Bits received", "").replace("Bits sent", "").replace("Traffic in", "").replace("Traffic out", "").replace("Interface", "").replace(":", "").replace("()", "").replace("<", "").replace(">", "").strip()
+            if not clean_name: clean_name = "Rede Padrão"
+            
+            if clean_name not in network_interfaces:
+                network_interfaces[clean_name] = {"in": None, "out": None}
                 
-        # Buscar itens de saída
-        out_items = []
-        for term in ["Bits sent", "Traffic out", "Outgoing", "Tráfego de saída", "Enviado"]:
-            items = zapi.search_items_by_name(selected_host_id, term)
-            if items:
-                out_items.extend(items)
-                break
+            if "received" in item["name"].lower() or "in" in item["name"].lower():
+                network_interfaces[clean_name]["in"] = item
+            else:
+                network_interfaces[clean_name]["out"] = item
                 
-        if not in_items and not out_items:
+        if not network_interfaces:
             st.info("Nenhum item de rede encontrado.")
         else:
-            # Pair in and out items if possible, or just list them all
-            # To pair them, we can just zip them if they are sorted similarly, or plot them sequentially
-            max_len = max(len(in_items), len(out_items))
-            for i in range(max_len):
-                col1, col2 = st.columns(2)
-                with col1:
-                    if i < len(in_items):
-                        item = in_items[i]
-                        df = zapi.get_history_data(item["itemid"], item["value_type"], start_dt, end_dt)
-                        if not df.empty:
-                            fig = px.line(df, x="time", y="value", title=f"Entrada - {item['name']}")
-                            if item["units"]: fig.update_yaxes(title_text=item["units"])
-                            fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
-                            st.plotly_chart(fig, use_container_width=True)
-                            try:
-                                img_path = f"data/temp_{uuid.uuid4().hex[:8]}.png"
-                                fig.write_image(img_path, width=800, height=400)
-                                chart_images.append(img_path)
-                            except:
-                                pass
-                with col2:
-                    if i < len(out_items):
-                        item = out_items[i]
-                        df = zapi.get_history_data(item["itemid"], item["value_type"], start_dt, end_dt)
-                        if not df.empty:
-                            fig = px.line(df, x="time", y="value", title=f"Saída - {item['name']}")
-                            if item["units"]: fig.update_yaxes(title_text=item["units"])
-                            fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
-                            st.plotly_chart(fig, use_container_width=True)
-                            try:
-                                img_path = f"data/temp_{uuid.uuid4().hex[:8]}.png"
-                                fig.write_image(img_path, width=800, height=400)
-                                chart_images.append(img_path)
-                            except:
-                                pass
+            for iface_name, items in network_interfaces.items():
+                fig = px.line(title=f"Tráfego - {iface_name}")
+                has_data = False
+                
+                # Plot IN
+                if items["in"]:
+                    df_in = zapi.get_history_data(items["in"]["itemid"], items["in"]["value_type"], start_dt, end_dt)
+                    if not df_in.empty:
+                        has_data = True
+                        fig.add_scatter(x=df_in["time"], y=df_in["value"], mode="lines", name="Entrada (In)", line=dict(color="#00bfa0"))
+                
+                # Plot OUT
+                if items["out"]:
+                    df_out = zapi.get_history_data(items["out"]["itemid"], items["out"]["value_type"], start_dt, end_dt)
+                    if not df_out.empty:
+                        has_data = True
+                        fig.add_scatter(x=df_out["time"], y=df_out["value"], mode="lines", name="Saída (Out)", line=dict(color="#ff4b4b"))
+                        
+                if has_data:
+                    if items["in"] and items["in"]["units"]: fig.update_yaxes(title_text=items["in"]["units"])
+                    fig.update_layout(margin=dict(l=20, r=20, t=40, b=20), showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                    st.plotly_chart(fig, use_container_width=True)
+                    try:
+                        img_path = f"data/temp_{uuid.uuid4().hex[:8]}.png"
+                        fig.write_image(img_path, width=800, height=400)
+                        chart_images.append(img_path)
+                    except:
+                        pass
 
         st.markdown("---")
         # Alertas Ativos
@@ -240,17 +236,29 @@ if generate_btn:
         pdf.alias_nb_pages()
         pdf.add_page()
         
-        # Adiciona imagens dos gráficos no PDF
+        # Adiciona imagens dos gráficos no PDF (lado a lado)
         if chart_images:
             pdf.set_font('Arial', 'B', 12)
             pdf.cell(0, 10, 'Graficos de Desempenho', ln=True)
-            for img in chart_images:
+            
+            x_pos = [10, 105]
+            y = pdf.get_y()
+            for i, img in enumerate(chart_images):
+                if i > 0 and i % 2 == 0:
+                    y += 55
+                    if y > 230:
+                        pdf.add_page()
+                        y = 20
                 try:
-                    # Centralizar imagem. Largura 180mm.
-                    pdf.image(img, x=15, w=180)
-                    pdf.ln(5)
-                except Exception as e:
+                    pdf.image(img, x=x_pos[i % 2], y=y, w=90)
+                except Exception:
                     pass
+            # Ajustar ponteiro Y proximo apos as imagens (considerando que há imagens)
+            final_y = y + 60 if len(chart_images) > 0 else y
+            if final_y > 250:
+                pdf.add_page()
+                final_y = 20
+            pdf.set_y(final_y)
                 
         pdf.add_table(df_active, "Alertas Ativos")
         pdf.add_table(df_history, "Historico de Alertas")
