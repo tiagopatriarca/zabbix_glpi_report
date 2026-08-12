@@ -63,14 +63,55 @@ if generate_btn:
     st.markdown(f"**Período:** {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}")
     
     with st.spinner("Buscando dados no Zabbix..."):
-        # We need item keys for CPU, Memory, Disk, Network.
-        # This can vary greatly depending on Zabbix templates. We'll try common keys.
-        cpu_items = zapi.get_items_by_key(selected_host_id, "system.cpu.util")
-        mem_items = zapi.get_items_by_key(selected_host_id, "vm.memory.util")
         
-        # In a real scenario, network keys might be net.if.in, net.if.out
-        # For simplicity, we just render mock charts if no data is found, or skip them.
+        # Função auxiliar para buscar e desenhar gráficos
+        def plot_metric(search_terms, title):
+            found_item = None
+            for term in search_terms:
+                items = zapi.search_items_by_name(selected_host_id, term)
+                if items:
+                    found_item = items[0] # Pega o primeiro correspondente
+                    break
+            
+            if not found_item:
+                st.info(f"Nenhum item encontrado para: {title}")
+                return None
+                
+            df = zapi.get_history_data(found_item["itemid"], found_item["value_type"], start_dt, end_dt)
+            if df.empty:
+                st.warning(f"Sem dados de histórico para {found_item['name']}")
+                return None
+                
+            fig = px.line(df, x="time", y="value", title=f"{title} - {found_item['name']}")
+            if found_item["units"]:
+                fig.update_yaxes(title_text=found_item["units"])
+            st.plotly_chart(fig, use_container_width=True)
+            return fig
+
+        st.markdown("### 📊 Gráficos de Desempenho")
         
+        # Linha 1: Processador e Memória
+        col_cpu, col_mem = st.columns(2)
+        with col_cpu:
+            plot_metric(["CPU utilization", "CPU", "Processador"], "Processador")
+        with col_mem:
+            plot_metric(["Memory utilization", "Available memory", "Total memory", "Memória"], "Memória")
+            
+        # Linha 2: Discos
+        st.markdown("#### Discos")
+        col_disk1, col_disk2 = st.columns(2)
+        with col_disk1:
+            plot_metric(["Free disk space", "Space utilization", "Disco"], "Espaço em Disco")
+            
+        # Linha 3: Placas de Rede (Entrada e Saída)
+        st.markdown("#### Tráfego de Rede")
+        col_net_in, col_net_out = st.columns(2)
+        with col_net_in:
+            plot_metric(["Bits received", "Interface", "Traffic in", "Entrada"], "Rede (Entrada)")
+        with col_net_out:
+            plot_metric(["Bits sent", "Traffic out", "Saída"], "Rede (Saída)")
+
+        st.markdown("---")
         # Alertas Ativos
         st.markdown("### 🔴 Alertas Ativos")
         active_alerts = zapi.get_active_alerts(selected_host_id)
@@ -91,7 +132,7 @@ if generate_btn:
             st.info("Nenhum alerta ocorreu neste período.")
             df_history = pd.DataFrame()
             
-        # PDF Export
+        # PDF Export (Apenas dados tabulares por enquanto, gráficos em PDF requerem salvar imagens)
         pdf = A4ReportPDF(
             title=f"Relatorio Zabbix - {selected_group_name}",
             subtitle=f"Host: {selected_host_name} | Período: {start_date} a {end_date}"

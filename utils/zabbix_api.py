@@ -71,6 +71,15 @@ class ZabbixClient:
             output=["itemid", "name", "key_", "value_type", "units"]
         )
 
+    def search_items_by_name(self, hostid, search_string):
+        """Busca items do host por parte do nome (case-insensitive)."""
+        return self.zapi.item.get(
+            hostids=hostid,
+            search={"name": search_string},
+            output=["itemid", "name", "key_", "value_type", "units"],
+            sortfield="name"
+        )
+
     def get_history_data(self, itemid, value_type, time_from, time_till):
         """Busca os dados históricos (gráficos) de um item."""
         history = self.zapi.history.get(
