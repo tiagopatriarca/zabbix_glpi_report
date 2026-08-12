@@ -73,10 +73,12 @@ class GLPIClient:
             'forcedisplay[0]': 1, # Title
             'forcedisplay[1]': 2, # ID
             'forcedisplay[2]': 15, # Date 
-            'forcedisplay[3]': 16, # Closedate/Solve date
+            'forcedisplay[3]': 17, # Solvedate 
             'forcedisplay[4]': 24, # Solution
             'forcedisplay[5]': 5, # Technician
-            'range': '0-999'
+            'forcedisplay[6]': 61, # Satisfaction
+            'range': '0-999',
+            'expand_dropdowns': 'true'
         }
         
         response = requests.get(url, headers=self._get_headers(), params=params, verify=False)
@@ -86,11 +88,26 @@ class GLPIClient:
             data = response.json()
             if 'data' in data:
                 for item in data['data']:
+                    # Format satisfaction stars
+                    sat_val = str(item.get('61') or '').strip()
+                    sat_stars = ""
+                    if sat_val.isdigit():
+                        sat_stars = "⭐" * int(sat_val)
+                    else:
+                        sat_stars = sat_val
+
+                    # Remove HTML tags from solution if present (basic cleanup)
+                    solution_html = str(item.get('24') or '').strip()
+                    import re
+                    solution_clean = re.sub('<[^<]+>', '', solution_html).replace('&nbsp;', ' ')
+                    
                     tickets.append({
                         "Número": item.get('2'),
                         "Título": item.get('1'),
-                        "Abertura": item.get('15'),
-                        "Solução": item.get('16'),
-                        # Outros campos podem requerer chamadas adicionais se o /search não retornar legível
+                        "Data de abertura": item.get('15'),
+                        "Data de solução": item.get('17') or item.get('16', ''),
+                        "Técnico Responsável": item.get('5', ''),
+                        "Solução": solution_clean,
+                        "Satisfação": sat_stars
                     })
         return tickets

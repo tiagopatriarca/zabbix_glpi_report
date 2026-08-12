@@ -63,8 +63,8 @@ if generate_btn:
             
             # PDF Export
             pdf = A4ReportPDF(
-                title=f"Relacao de chamados da {selected_entity_name}",
-                subtitle=f"Periodo: {start_date} a {end_date}"
+                title=f"Relação de chamados da {selected_entity_name}",
+                subtitle=f"Período: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}"
             )
             pdf.alias_nb_pages()
             pdf.add_page()
