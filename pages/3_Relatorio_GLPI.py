@@ -71,7 +71,7 @@ if generate_btn:
             
             pdf.add_table(df_tickets)
             
-            pdf_bytes = pdf.output(dest='S').encode('latin1', errors='replace')
+            pdf_bytes = bytes(pdf.output())
             
             st.download_button(
                 label="📥 Exportar Relatório para PDF",
