@@ -2,14 +2,10 @@ version: '3'
 
 services:
   zabbix-glpi-reporter:
-    image: ghcr.io/tiagopatriarca/zabbix_glpi_report:latest
+    build: .
     container_name: relatorio_zabbix_glpi
     ports:
       - "8501:8501"
     volumes:
-      # Usando Named Volume gerenciado pelo Docker (muito mais seguro contra erros de permissão em hospedagens)
-      - app_data:/app/data
+      - ./data:/app/data
     restart: unless-stopped
-
-volumes:
-  app_data:
