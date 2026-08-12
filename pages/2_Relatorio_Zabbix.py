@@ -151,15 +151,65 @@ if generate_btn:
         st.markdown("#### Discos")
         col_disk1, col_disk2 = st.columns(2)
         with col_disk1:
-            plot_metric(["Space utilization", "Free disk space", "Disco"], "Espaço em Disco", chart_type="pie")
+            plot_metric(["Space utilization", "Free disk space", "Used disk space", "Espaço livre", "Espaço utilizado", "Uso de disco", "Disco", "Disk", "vfs.fs"], "Espaço em Disco", chart_type="pie")
             
-        # Linha 3: Placas de Rede (Entrada e Saída)
+        # Linha 3: Placas de Rede (Separado por Interface)
         st.markdown("#### Tráfego de Rede")
-        col_net_in, col_net_out = st.columns(2)
-        with col_net_in:
-            plot_metric(["Bits received", "Interface", "Traffic in", "Entrada"], "Rede (Entrada)", multi=True)
-        with col_net_out:
-            plot_metric(["Bits sent", "Traffic out", "Saída"], "Rede (Saída)", multi=True)
+        
+        # Buscar itens de entrada
+        in_items = []
+        for term in ["Bits received", "Traffic in", "Incoming", "Tráfego de entrada", "Recebido"]:
+            items = zapi.search_items_by_name(selected_host_id, term)
+            if items:
+                in_items.extend(items)
+                break
+                
+        # Buscar itens de saída
+        out_items = []
+        for term in ["Bits sent", "Traffic out", "Outgoing", "Tráfego de saída", "Enviado"]:
+            items = zapi.search_items_by_name(selected_host_id, term)
+            if items:
+                out_items.extend(items)
+                break
+                
+        if not in_items and not out_items:
+            st.info("Nenhum item de rede encontrado.")
+        else:
+            # Pair in and out items if possible, or just list them all
+            # To pair them, we can just zip them if they are sorted similarly, or plot them sequentially
+            max_len = max(len(in_items), len(out_items))
+            for i in range(max_len):
+                col1, col2 = st.columns(2)
+                with col1:
+                    if i < len(in_items):
+                        item = in_items[i]
+                        df = zapi.get_history_data(item["itemid"], item["value_type"], start_dt, end_dt)
+                        if not df.empty:
+                            fig = px.line(df, x="time", y="value", title=f"Entrada - {item['name']}")
+                            if item["units"]: fig.update_yaxes(title_text=item["units"])
+                            fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
+                            st.plotly_chart(fig, use_container_width=True)
+                            try:
+                                img_path = f"data/temp_{uuid.uuid4().hex[:8]}.png"
+                                fig.write_image(img_path, width=800, height=400)
+                                chart_images.append(img_path)
+                            except:
+                                pass
+                with col2:
+                    if i < len(out_items):
+                        item = out_items[i]
+                        df = zapi.get_history_data(item["itemid"], item["value_type"], start_dt, end_dt)
+                        if not df.empty:
+                            fig = px.line(df, x="time", y="value", title=f"Saída - {item['name']}")
+                            if item["units"]: fig.update_yaxes(title_text=item["units"])
+                            fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
+                            st.plotly_chart(fig, use_container_width=True)
+                            try:
+                                img_path = f"data/temp_{uuid.uuid4().hex[:8]}.png"
+                                fig.write_image(img_path, width=800, height=400)
+                                chart_images.append(img_path)
+                            except:
+                                pass
 
         st.markdown("---")
         # Alertas Ativos
