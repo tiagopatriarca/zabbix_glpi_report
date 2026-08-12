@@ -76,7 +76,7 @@ class ZabbixClient:
         return self.zapi.item.get(
             hostids=hostid,
             search={"name": search_string},
-            output=["itemid", "name", "key_", "value_type", "units"],
+            output=["itemid", "name", "key_", "value_type", "units", "lastvalue"],
             sortfield="name"
         )
 

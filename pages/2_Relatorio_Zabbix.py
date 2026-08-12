@@ -64,28 +64,78 @@ if generate_btn:
     
     with st.spinner("Buscando dados no Zabbix..."):
         
+        import os
+        import uuid
+        
+        # Lista para armazenar os caminhos das imagens geradas
+        chart_images = []
+        
         # Função auxiliar para buscar e desenhar gráficos
-        def plot_metric(search_terms, title):
-            found_item = None
+        def plot_metric(search_terms, title, chart_type="line", multi=False):
+            found_items = []
             for term in search_terms:
                 items = zapi.search_items_by_name(selected_host_id, term)
                 if items:
-                    found_item = items[0] # Pega o primeiro correspondente
-                    break
+                    if multi:
+                        found_items.extend(items)
+                    else:
+                        found_items.append(items[0])
+                        break
             
-            if not found_item:
+            if not found_items:
                 st.info(f"Nenhum item encontrado para: {title}")
                 return None
                 
-            df = zapi.get_history_data(found_item["itemid"], found_item["value_type"], start_dt, end_dt)
-            if df.empty:
-                st.warning(f"Sem dados de histórico para {found_item['name']}")
-                return None
+            fig = None
+            if chart_type == "line":
+                if multi:
+                    # Multiplas linhas no mesmo grafico
+                    fig = px.line(title=title)
+                    has_data = False
+                    for item in found_items:
+                        df = zapi.get_history_data(item["itemid"], item["value_type"], start_dt, end_dt)
+                        if not df.empty:
+                            has_data = True
+                            fig.add_scatter(x=df["time"], y=df["value"], mode="lines", name=item["name"])
+                    if not has_data:
+                        st.warning(f"Sem dados de histórico para {title}")
+                        return None
+                    fig.update_layout(showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                else:
+                    item = found_items[0]
+                    df = zapi.get_history_data(item["itemid"], item["value_type"], start_dt, end_dt)
+                    if df.empty:
+                        st.warning(f"Sem dados de histórico para {item['name']}")
+                        return None
+                    fig = px.line(df, x="time", y="value", title=f"{title} - {item['name']}")
+                    if item["units"]:
+                        fig.update_yaxes(title_text=item["units"])
+                        
+            elif chart_type == "pie":
+                # Grafico de pizza (geralmente usado para uso de disco, que vem em porcentagem)
+                item = found_items[0]
+                if "lastvalue" in item and item["lastvalue"]:
+                    used = float(item["lastvalue"])
+                    free = 100.0 - used if used <= 100 else 0
+                    labels = ['Utilizado', 'Livre']
+                    values = [used, free]
+                    fig = px.pie(values=values, names=labels, title=f"{title} ({item['name']})", color_discrete_sequence=['#ff4b4b', '#00bfa0'])
+                else:
+                    st.warning(f"Sem valor recente para montar a pizza de {title}")
+                    return None
+                    
+            if fig:
+                fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
+                st.plotly_chart(fig, use_container_width=True)
                 
-            fig = px.line(df, x="time", y="value", title=f"{title} - {found_item['name']}")
-            if found_item["units"]:
-                fig.update_yaxes(title_text=found_item["units"])
-            st.plotly_chart(fig, use_container_width=True)
+                # Salvar imagem para o PDF
+                try:
+                    img_path = f"data/temp_{uuid.uuid4().hex[:8]}.png"
+                    fig.write_image(img_path, width=800, height=400)
+                    chart_images.append(img_path)
+                except Exception as e:
+                    st.error(f"Erro ao exportar imagem do gráfico: {str(e)}")
+            
             return fig
 
         st.markdown("### 📊 Gráficos de Desempenho")
@@ -93,23 +143,23 @@ if generate_btn:
         # Linha 1: Processador e Memória
         col_cpu, col_mem = st.columns(2)
         with col_cpu:
-            plot_metric(["CPU utilization", "CPU", "Processador"], "Processador")
+            plot_metric(["CPU utilization", "CPU", "Processador"], "Processador", "line")
         with col_mem:
-            plot_metric(["Memory utilization", "Available memory", "Total memory", "Memória"], "Memória")
+            plot_metric(["Memory utilization", "Available memory", "Total memory", "Memória"], "Memória", "line")
             
         # Linha 2: Discos
         st.markdown("#### Discos")
         col_disk1, col_disk2 = st.columns(2)
         with col_disk1:
-            plot_metric(["Free disk space", "Space utilization", "Disco"], "Espaço em Disco")
+            plot_metric(["Space utilization", "Free disk space", "Disco"], "Espaço em Disco", chart_type="pie")
             
         # Linha 3: Placas de Rede (Entrada e Saída)
         st.markdown("#### Tráfego de Rede")
         col_net_in, col_net_out = st.columns(2)
         with col_net_in:
-            plot_metric(["Bits received", "Interface", "Traffic in", "Entrada"], "Rede (Entrada)")
+            plot_metric(["Bits received", "Interface", "Traffic in", "Entrada"], "Rede (Entrada)", multi=True)
         with col_net_out:
-            plot_metric(["Bits sent", "Traffic out", "Saída"], "Rede (Saída)")
+            plot_metric(["Bits sent", "Traffic out", "Saída"], "Rede (Saída)", multi=True)
 
         st.markdown("---")
         # Alertas Ativos
@@ -132,7 +182,7 @@ if generate_btn:
             st.info("Nenhum alerta ocorreu neste período.")
             df_history = pd.DataFrame()
             
-        # PDF Export (Apenas dados tabulares por enquanto, gráficos em PDF requerem salvar imagens)
+        # PDF Export
         pdf = A4ReportPDF(
             title=f"Relatorio Zabbix - {selected_group_name}",
             subtitle=f"Host: {selected_host_name} | Período: {start_date} a {end_date}"
@@ -140,10 +190,27 @@ if generate_btn:
         pdf.alias_nb_pages()
         pdf.add_page()
         
+        # Adiciona imagens dos gráficos no PDF
+        if chart_images:
+            pdf.set_font('Arial', 'B', 12)
+            pdf.cell(0, 10, 'Graficos de Desempenho', ln=True)
+            for img in chart_images:
+                try:
+                    # Centralizar imagem. Largura 180mm.
+                    pdf.image(img, x=15, w=180)
+                    pdf.ln(5)
+                except Exception as e:
+                    pass
+                
         pdf.add_table(df_active, "Alertas Ativos")
         pdf.add_table(df_history, "Historico de Alertas")
         
         pdf_bytes = bytes(pdf.output())
+        
+        # Limpar imagens temporárias
+        for img in chart_images:
+            if os.path.exists(img):
+                os.remove(img)
         
         st.download_button(
             label="📥 Exportar Relatório para PDF",

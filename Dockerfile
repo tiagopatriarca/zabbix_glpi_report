@@ -3,6 +3,9 @@ FROM python:3.11-slim
 # Definir o diretório de trabalho dentro do container
 WORKDIR /app
 
+# Instalar fonte para o exportador de imagens (Kaleido) do Plotly
+RUN apt-get update && apt-get install -y --no-install-recommends libfontconfig1 && rm -rf /var/lib/apt/lists/*
+
 # Copiar apenas os requirements primeiro (para aproveitar o cache do Docker)
 COPY requirements.txt .
 
