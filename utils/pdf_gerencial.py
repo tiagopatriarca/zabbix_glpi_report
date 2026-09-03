@@ -110,7 +110,8 @@ class A4GerencialPDF(FPDF):
             self.ln(3)
             
             for acao in acoes.get("lista_acoes", []):
-                self.cell(5, 6, chr(149), 0, 0)
+                self.set_x(10)
+                self.cell(5, 6, "-", 0, 0)
                 self.multi_cell(0, 6, acao)
             self.ln(5)
             
