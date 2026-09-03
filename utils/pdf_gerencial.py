@@ -151,9 +151,7 @@ class A4GerencialPDF(FPDF):
 
     def add_table(self, dataframe, title=""):
         if title:
-            self.set_font('helvetica', 'B', 12)
-            self.cell(0, 10, title, 0, 1, 'L')
-            self.ln(2)
+            self._render_section_title(title)
 
         self.set_font('helvetica', 'B', 10)
         
