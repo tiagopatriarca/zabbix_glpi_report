@@ -288,11 +288,14 @@ if generate_btn:
         # Populando a "Análise de Infraestrutura" com base nos Alertas Ativos do Zabbix
         if active_alerts:
             for alert in active_alerts[:4]: # Mostrar até 4 alertas
+                prioridade = alert.get("Prioridade", "")
+                is_critical = prioridade in ["Alta", "Desastre"]
+                
                 dados_gerenciais["relatorio"]["secoes"]["analise_infraestrutura"]["itens"].append({
-                    "equipamento": alert["name"],
+                    "equipamento": alert.get("Descrição", "Alerta"),
                     "status": "Incidente",
-                    "cor_status": "red" if int(alert.get("severity", 2)) >= 4 else "orange",
-                    "observacoes": f"Incidente detectado às {datetime.datetime.fromtimestamp(int(alert['clock'])).strftime('%d/%m/%Y %H:%M')}"
+                    "cor_status": "red" if is_critical else "orange",
+                    "observacoes": f"Incidente detectado: {alert.get('Início', '')}"
                 })
         else:
              dados_gerenciais["relatorio"]["secoes"]["analise_infraestrutura"]["itens"].append({
