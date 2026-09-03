@@ -152,26 +152,35 @@ class A4GerencialPDF(FPDF):
     def add_table(self, dataframe, title=""):
         if title:
             self._render_section_title(title)
-
-        self.set_font('helvetica', 'B', 10)
         
         if not dataframe.empty:
-            total_width = self.epw
-            col_width = total_width / len(dataframe.columns)
-            
-            for col in dataframe.columns:
-                self.cell(col_width, 8, str(col)[:25], 1, 0, 'C')
-            self.ln()
-            
             self.set_font('helvetica', '', 9)
-            for index, row in dataframe.iterrows():
-                for item in row:
-                    text_val = str(item)
-                    # Truncate string so it stays inside cell. 
-                    # Aproximadamente 45 caracteres cabem num espaco maior se for landscape
-                    limit = int(col_width * 0.6)
-                    self.cell(col_width, 8, text_val[:limit], 1, 0, 'C')
-                self.ln()
+            
+            # Identificar colunas e tentar fazer as que costumam ser maiores terem mais espaco (GLPI)
+            cols = list(dataframe.columns)
+            col_widths = None
+            if "Título" in cols and "Solução" in cols:
+                # Proporcoes para relatorio do GLPI
+                col_widths = []
+                for c in cols:
+                    if c == "Número" or c == "Satisfação": col_widths.append(10)
+                    elif c == "Título" or c == "Solução": col_widths.append(30)
+                    else: col_widths.append(15)
+                    
+            with self.table(text_align="CENTER", col_widths=col_widths, borders_layout="ALL", line_height=6) as table:
+                # Header
+                row = table.row()
+                for col in dataframe.columns:
+                    row.cell(str(col))
+                
+                # Rows
+                for index, df_row in dataframe.iterrows():
+                    row = table.row()
+                    for item in df_row:
+                        text_val = str(item).strip()
+                        if not text_val or text_val == "None":
+                            text_val = "-"
+                        row.cell(text_val)
         else:
             self.set_font('helvetica', 'I', 10)
             self.cell(0, 10, "Sem dados disponíveis.", 0, 1, 'L')
