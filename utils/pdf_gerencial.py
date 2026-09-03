@@ -147,3 +147,42 @@ class A4GerencialPDF(FPDF):
         self.set_fill_color(240, 240, 240)
         self.cell(0, 10, text, 0, 1, 'L', fill=True)
         self.ln(3)
+
+    def add_table(self, dataframe, title=""):
+        if title:
+            self.set_font('helvetica', 'B', 12)
+            self.cell(0, 10, title, 0, 1, 'L')
+            self.ln(2)
+
+        self.set_font('helvetica', 'B', 10)
+        
+        if not dataframe.empty:
+            total_width = 190
+            col_width = total_width / len(dataframe.columns)
+            
+            for col in dataframe.columns:
+                self.cell(col_width, 8, str(col), 1, 0, 'C')
+            self.ln()
+            
+            self.set_font('helvetica', '', 9)
+            for index, row in dataframe.iterrows():
+                for item in row:
+                    self.cell(col_width, 8, str(item)[:30], 1, 0, 'C')
+                self.ln()
+        else:
+            self.set_font('helvetica', 'I', 10)
+            self.cell(0, 10, "Sem dados disponíveis.", 0, 1, 'L')
+        self.ln(5)
+        
+    def add_image(self, image_path, title="", w=190, x=10, y=None):
+        if title:
+            self.set_font('helvetica', 'B', 12)
+            self.cell(0, 10, title, 0, 1, 'L')
+            self.ln(2)
+        
+        if os.path.exists(image_path):
+            if y is not None:
+                self.image(image_path, x=x, y=y, w=w)
+            else:
+                self.image(image_path, x=x, w=w)
+                self.ln(5)

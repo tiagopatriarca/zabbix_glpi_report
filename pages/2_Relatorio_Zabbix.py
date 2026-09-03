@@ -228,18 +228,87 @@ if generate_btn:
             st.info("Nenhum alerta ocorreu neste período.")
             df_history = pd.DataFrame()
             
-        # PDF Export
-        pdf = A4ReportPDF(
-            title=f"Relatorio Zabbix - {selected_group_name}",
-            subtitle=f"Host: {selected_host_name} | Período: {start_date} a {end_date}"
-        )
-        pdf.alias_nb_pages()
-        pdf.add_page()
+        # --- PDF Export com Modelo Gerencial JSON ---
+        from utils.pdf_gerencial import A4GerencialPDF
         
-        # Adiciona imagens dos gráficos no PDF (lado a lado)
+        # Montar o JSON model 
+        dados_gerenciais = {
+            "relatorio": {
+                "cabecalho": {
+                    "empresa": "TI Plus",
+                    "logo_url": "",
+                    "tipo_documento": "RELATÓRIO TÉCNICO",
+                    "data": datetime.date.today().strftime("%d/%m/%Y")
+                },
+                "titulo": {
+                    "principal": "Relatório de Gestão",
+                    "subtitulo": f"Infraestrutura de TI e Serviços Técnicos - {selected_host_name}"
+                },
+                "secoes": {
+                    "resumo_executivo": {
+                        "titulo": "1. Resumo Executivo",
+                        "conteudo": "Este espaço é destinado a um resumo claro e conciso sobre as atividades realizadas, o estado atual da infraestrutura e os principais pontos de atenção. O monitoramento contínuo tem garantido a estabilidade geral."
+                    },
+                    "analise_infraestrutura": {
+                        "titulo": "2. Análise de Infraestrutura",
+                        "descricao": f"Abaixo está o detalhamento do status dos eventos do host {selected_host_name}. O monitoramento contínuo permite ações proativas em caso de falhas incipientes.",
+                        "itens": []
+                    },
+                    "acoes_realizadas": {
+                        "titulo": "3. Ações Realizadas",
+                        "descricao": "Relação das principais manutenções preventivas, corretivas e atualizações aplicadas durante o período de abrangência deste relatório:",
+                        "lista_acoes": [
+                            "Monitoramento ativo de CPU, Memória, Disco e Rede.",
+                            "Auditoria de alertas e resolução de incidentes.",
+                            "Validação de performance através dos gráficos de telemetria."
+                        ]
+                    },
+                    "recomendacoes": {
+                        "titulo": "4. Recomendações e Próximos Passos",
+                        "descricao": "Com base na análise de infraestrutura, recomendamos as seguintes ações para o próximo ciclo, visando a melhoria da performance, segurança e mitigação de riscos:",
+                        "lista_recomendacoes": [
+                            {
+                                "acao": "Acompanhamento Contínuo",
+                                "detalhe": "Avaliar constantemente os gráficos de tráfego para prever a necessidade de upgrade de link."
+                            }
+                        ]
+                    }
+                },
+                "assinatura": {
+                    "equipe": "Equipe TI Plus",
+                    "departamento": "Gestão de Infraestrutura e Suporte"
+                },
+                "rodape": {
+                    "texto": "TI Plus - Gestão de infraestrutura",
+                    "exibir_paginacao": True
+                }
+            }
+        }
+
+        # Populando a "Análise de Infraestrutura" com base nos Alertas Ativos do Zabbix
+        if active_alerts:
+            for alert in active_alerts[:4]: # Mostrar até 4 alertas
+                dados_gerenciais["relatorio"]["secoes"]["analise_infraestrutura"]["itens"].append({
+                    "equipamento": alert["name"],
+                    "status": "Incidente",
+                    "cor_status": "red" if int(alert.get("severity", 2)) >= 4 else "orange",
+                    "observacoes": f"Incidente detectado às {datetime.datetime.fromtimestamp(int(alert['clock'])).strftime('%d/%m/%Y %H:%M')}"
+                })
+        else:
+             dados_gerenciais["relatorio"]["secoes"]["analise_infraestrutura"]["itens"].append({
+                    "equipamento": f"Host {selected_host_name}",
+                    "status": "Operacional",
+                    "cor_status": "green",
+                    "observacoes": "Nenhum alerta crítico ativo. Sistema operando normalmente."
+             })
+             
+        pdf = A4GerencialPDF(dados_gerenciais)
+        pdf.render_report()
+        
+        # Adiciona imagens dos gráficos no PDF (lado a lado) em uma nova página
         if chart_images:
-            pdf.set_font('Arial', 'B', 12)
-            pdf.cell(0, 10, 'Graficos de Desempenho', ln=True)
+            pdf.add_page()
+            pdf._render_section_title("5. Gráficos de Desempenho")
             
             x_pos = [10, 105]
             y = pdf.get_y()
@@ -253,15 +322,15 @@ if generate_btn:
                     pdf.image(img, x=x_pos[i % 2], y=y, w=90)
                 except Exception:
                     pass
-            # Ajustar ponteiro Y proximo apos as imagens (considerando que há imagens)
+            # Ajustar ponteiro Y proximo apos as imagens
             final_y = y + 60 if len(chart_images) > 0 else y
             if final_y > 250:
                 pdf.add_page()
                 final_y = 20
             pdf.set_y(final_y)
                 
-        pdf.add_table(df_active, "Alertas Ativos")
-        pdf.add_table(df_history, "Historico de Alertas")
+        pdf.add_table(df_active, "6. Alertas Ativos")
+        pdf.add_table(df_history, "7. Histórico de Alertas")
         
         pdf_bytes = bytes(pdf.output())
         
