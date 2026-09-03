@@ -111,9 +111,13 @@ class GLPIClient:
 
                     solution_html = str(item.get('24') or '').strip()
                     import re
-                    solution_clean = re.sub('<[^<]+>', '', solution_html).replace('&nbsp;', ' ').strip()
                     import html
+                    # Primeiro decodifica entidades HTML como &#60; para <
+                    solution_clean = html.unescape(solution_html)
+                    # Opcionalmente fazer duplo unescape caso esteja muito encodado
                     solution_clean = html.unescape(solution_clean)
+                    # Depois aplica a remocao de tags HTML
+                    solution_clean = re.sub('<[^<]+>', '', solution_clean).replace('&nbsp;', ' ').strip()
                     
                     tech_raw = str(item.get('5', ''))
                     tech_names = []
