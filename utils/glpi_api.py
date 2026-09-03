@@ -43,23 +43,34 @@ class GLPIClient:
                 return sorted([{"id": e["id"], "name": e["name"]} for e in entities], key=lambda x: x["name"])
         return []
 
+    def get_users(self):
+        """Busca a lista de usuários para mapear IDs para nomes."""
+        url = f"{self.url}/User?range=0-999"
+        response = requests.get(url, headers=self._get_headers(), verify=False)
+        users = {}
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, list):
+                for u in data:
+                    first = u.get("firstname") or ""
+                    last = u.get("realname") or ""
+                    name = f"{first} {last}".strip()
+                    if not name:
+                        name = u.get("name", "")
+                    users[str(u.get("id"))] = name
+        return users
+
     def get_tickets(self, entity_id, date_start, date_end):
         """
         Busca chamados por entidade dentro do período de datas.
-        O endpoint search é mais apropriado no GLPI para filtros complexos.
         """
-        # Formato de data GLPI: YYYY-MM-DD HH:MM:SS
         start_str = date_start.strftime("%Y-%m-%d 00:00:00")
         end_str = date_end.strftime("%Y-%m-%d 23:59:59")
 
-        # Endpoint de busca (Ticket=2)
-        # Criteria: Data de abertura >= start AND Data de abertura <= end AND entities_id = entity_id
-        
         url = f"{self.url}/search/Ticket"
         
-        # Este payload usa os parâmetros de busca do GLPI
         params = {
-            'criteria[0][field]': 15, # 15 é date de abertura geralmente
+            'criteria[0][field]': 15,
             'criteria[0][searchtype]': 'morethan',
             'criteria[0][value]': start_str,
             'criteria[1][link]': 'AND',
@@ -67,19 +78,22 @@ class GLPIClient:
             'criteria[1][searchtype]': 'lessthan',
             'criteria[1][value]': end_str,
             'criteria[2][link]': 'AND',
-            'criteria[2][field]': 80, # Entity ID
+            'criteria[2][field]': 80,
             'criteria[2][searchtype]': 'equals',
             'criteria[2][value]': entity_id,
-            'forcedisplay[0]': 1, # Title
-            'forcedisplay[1]': 2, # ID
-            'forcedisplay[2]': 15, # Date 
-            'forcedisplay[3]': 17, # Solvedate 
-            'forcedisplay[4]': 24, # Solution
-            'forcedisplay[5]': 5, # Technician
-            'forcedisplay[6]': 61, # Satisfaction
+            'forcedisplay[0]': 1,
+            'forcedisplay[1]': 2,
+            'forcedisplay[2]': 15,
+            'forcedisplay[3]': 17,
+            'forcedisplay[4]': 24,
+            'forcedisplay[5]': 5,
+            'forcedisplay[6]': 61,
             'range': '0-999',
             'expand_dropdowns': 'true'
         }
+        
+        # Buscar mapeamento de usuários antes
+        users_map = self.get_users()
         
         response = requests.get(url, headers=self._get_headers(), params=params, verify=False)
         
@@ -88,7 +102,6 @@ class GLPIClient:
             data = response.json()
             if 'data' in data:
                 for item in data['data']:
-                    # Format satisfaction stars
                     sat_val = str(item.get('61') or '').strip()
                     sat_stars = ""
                     if sat_val.isdigit():
@@ -96,17 +109,37 @@ class GLPIClient:
                     else:
                         sat_stars = sat_val
 
-                    # Remove HTML tags from solution if present (basic cleanup)
                     solution_html = str(item.get('24') or '').strip()
                     import re
-                    solution_clean = re.sub('<[^<]+>', '', solution_html).replace('&nbsp;', ' ')
+                    solution_clean = re.sub('<[^<]+>', '', solution_html).replace('&nbsp;', ' ').strip()
+                    import html
+                    solution_clean = html.unescape(solution_clean)
                     
+                    tech_raw = str(item.get('5', ''))
+                    tech_names = []
+                    import ast
+                    try:
+                        if tech_raw.startswith('[') and tech_raw.endswith(']'):
+                            tech_ids = ast.literal_eval(tech_raw)
+                            for t_id in tech_ids:
+                                tech_names.append(users_map.get(str(t_id), str(t_id)))
+                        else:
+                            tech_names.append(users_map.get(tech_raw, tech_raw))
+                    except:
+                        tech_names.append(tech_raw)
+                        
+                    tech_responsavel = ", ".join([n for n in tech_names if n and n != 'None'])
+
+                    dt_abertura = str(item.get('15') or '')[:10]
+                    dt_solucao = str(item.get('17') or item.get('16') or '')[:10]
+                    
+                    # Garantir a ordem das chaves conforme PDF e com datas truncadas
                     tickets.append({
                         "Número": item.get('2'),
                         "Título": item.get('1'),
-                        "Data de abertura": item.get('15'),
-                        "Data de solução": item.get('17') or item.get('16', ''),
-                        "Técnico Responsável": item.get('5', ''),
+                        "Data de abertura": dt_abertura,
+                        "Data de solução": dt_solucao,
+                        "Técnico Responsável": tech_responsavel,
                         "Solução": solution_clean,
                         "Satisfação": sat_stars
                     })

@@ -61,13 +61,30 @@ if generate_btn:
             
             st.dataframe(df_tickets, use_container_width=True)
             
-            # PDF Export
-            pdf = A4ReportPDF(
-                title=f"Relação de chamados da {selected_entity_name}",
-                subtitle=f"Período: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}"
-            )
-            pdf.alias_nb_pages()
-            pdf.add_page()
+            # --- PDF Export com Modelo Gerencial JSON (Paisagem) ---
+            from utils.pdf_gerencial import A4GerencialPDF
+            
+            dados_gerenciais = {
+                "relatorio": {
+                    "cabecalho": {
+                        "empresa": "TI Plus",
+                        "logo_url": "data/logo.png",
+                        "tipo_documento": "RELATÓRIO TÉCNICO",
+                        "data": datetime.date.today().strftime("%d/%m/%Y")
+                    },
+                    "titulo": {
+                        "principal": f"Relação de chamados da {selected_entity_name}",
+                        "subtitulo": f"Período: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}"
+                    },
+                    "rodape": {
+                        "texto": "TI Plus - Gestão de infraestrutura",
+                        "exibir_paginacao": True
+                    }
+                }
+            }
+
+            pdf = A4GerencialPDF(dados_gerenciais, orientation='L')
+            pdf.render_report()
             
             pdf.add_table(df_tickets)
             

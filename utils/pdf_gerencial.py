@@ -2,8 +2,8 @@ from fpdf import FPDF
 import os
 
 class A4GerencialPDF(FPDF):
-    def __init__(self, data_json):
-        super().__init__(orientation='P', unit='mm', format='A4')
+    def __init__(self, data_json, orientation='P'):
+        super().__init__(orientation=orientation, unit='mm', format='A4')
         self.data = data_json.get("relatorio", {})
         self.set_auto_page_break(auto=True, margin=15)
         
@@ -156,17 +156,21 @@ class A4GerencialPDF(FPDF):
         self.set_font('helvetica', 'B', 10)
         
         if not dataframe.empty:
-            total_width = 190
+            total_width = self.epw
             col_width = total_width / len(dataframe.columns)
             
             for col in dataframe.columns:
-                self.cell(col_width, 8, str(col), 1, 0, 'C')
+                self.cell(col_width, 8, str(col)[:25], 1, 0, 'C')
             self.ln()
             
             self.set_font('helvetica', '', 9)
             for index, row in dataframe.iterrows():
                 for item in row:
-                    self.cell(col_width, 8, str(item)[:30], 1, 0, 'C')
+                    text_val = str(item)
+                    # Truncate string so it stays inside cell. 
+                    # Aproximadamente 45 caracteres cabem num espaco maior se for landscape
+                    limit = int(col_width * 0.6)
+                    self.cell(col_width, 8, text_val[:limit], 1, 0, 'C')
                 self.ln()
         else:
             self.set_font('helvetica', 'I', 10)
