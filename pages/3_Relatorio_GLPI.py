@@ -1,18 +1,37 @@
 import streamlit as st
 import pandas as pd
 import datetime
-from utils.config import get_glpi_config
+from utils.database import get_clients_for_user, get_glpi_configs
 from utils.glpi_api import GLPIClient
-from utils.pdf_generator import A4ReportPDF
 
 st.set_page_config(page_title="Relatório GLPI", page_icon="🎫", layout="wide")
 
+if not st.session_state.get('user'):
+    st.warning("Por favor, faça login na tela inicial.")
+    st.stop()
+
 st.title("🎫 Relatório de Atendimentos - GLPI")
 
-cfg = get_glpi_config()
-if not cfg.get("url") or not cfg.get("user_token") or not cfg.get("app_token"):
-    st.warning("Configurações do GLPI não encontradas. Vá até a aba de Configurações.")
+# --- Seleção de Cliente e Integração ---
+user = st.session_state.user
+clientes = get_clients_for_user(user['id'], user['is_admin'])
+
+if not clientes:
+    st.warning("Você não tem acesso a nenhum cliente.")
     st.stop()
+
+client_dict = {c['name']: c['id'] for c in clientes}
+selected_client = st.sidebar.selectbox("1. Selecione o Cliente", options=list(client_dict.keys()))
+client_id = client_dict[selected_client]
+
+configs = get_glpi_configs(client_id)
+if not configs:
+    st.warning("Este cliente não possui integrações GLPI cadastradas.")
+    st.stop()
+
+config_dict = {cfg['name']: cfg for cfg in configs}
+selected_config_name = st.sidebar.selectbox("2. Selecione a Instância GLPI", options=list(config_dict.keys()))
+cfg = config_dict[selected_config_name]
 
 try:
     glpi = GLPIClient(cfg["url"], cfg["user_token"], cfg["app_token"])
@@ -67,7 +86,7 @@ if generate_btn:
             dados_gerenciais = {
                 "relatorio": {
                     "cabecalho": {
-                        "empresa": "TI Plus",
+                        "empresa": selected_client,
                         "logo_url": "data/logo.png",
                         "tipo_documento": "RELATÓRIO TÉCNICO",
                         "data": datetime.date.today().strftime("%d/%m/%Y")
@@ -77,7 +96,7 @@ if generate_btn:
                         "subtitulo": f"Período: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}"
                     },
                     "rodape": {
-                        "texto": "TI Plus - Gestão de infraestrutura",
+                        "texto": f"{selected_client} - Gestão de infraestrutura",
                         "exibir_paginacao": True
                     }
                 }

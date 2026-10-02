@@ -1,4 +1,5 @@
 import streamlit as st
+from utils.database import init_db, authenticate
 
 st.set_page_config(
     page_title="Gerador de Relatórios",
@@ -7,17 +8,62 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.title("📊 Gerador de Relatórios Integrado")
-st.markdown("""
-Bem-vindo ao sistema de geração de relatórios!
+# Inicializar Banco de Dados
+init_db()
 
-Utilize o menu lateral para navegar entre:
-- **⚙️ Configurações:** Configure os acessos ao Zabbix e ao GLPI.
-- **📈 Relatório Zabbix:** Gere relatórios de infraestrutura e performance.
-- **🎫 Relatório GLPI:** Gere relatórios de chamados e atendimento.
+# Gerenciamento de Sessão
+if "user" not in st.session_state:
+    st.session_state.user = None
 
-**Dica:** Antes de começar, certifique-se de configurar as credenciais de acesso na aba de Configurações.
-""")
+def do_login():
+    username = st.session_state.login_user
+    password = st.session_state.login_pass
+    user = authenticate(username, password)
+    if user:
+        st.session_state.user = user
+    else:
+        st.error("Usuário ou senha inválidos.")
+
+def do_logout():
+    st.session_state.user = None
+    st.rerun()
+
+if not st.session_state.user:
+    # Esconder sidebar na tela de login
+    st.markdown("""
+        <style>
+            [data-testid="collapsedControl"] {display: none;}
+            [data-testid="stSidebar"] {display: none;}
+        </style>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.title("🔐 Acesso ao Sistema")
+        st.markdown("Insira suas credenciais para continuar.")
+        
+        with st.form("login_form"):
+            st.text_input("Usuário", key="login_user")
+            st.text_input("Senha", type="password", key="login_pass")
+            submit = st.form_submit_button("Entrar")
+            if submit:
+                do_login()
+                if st.session_state.user:
+                    st.rerun()
+else:
+    st.sidebar.markdown(f"**Logado como:** {st.session_state.user['username']}")
+    if st.sidebar.button("Sair"):
+        do_logout()
+        
+    st.title("📊 Painel Principal")
+    st.markdown(f"""
+    Bem-vindo(a) **{st.session_state.user['username']}**!
+    
+    Utilize o menu lateral para acessar os relatórios.
+    """)
+    if st.session_state.user.get('is_admin'):
+        st.info("Você é um administrador. Acesse a tela de **Administração** para gerenciar Clientes, Usuários e Integrações.")
+
 
 st.markdown("---")
 st.subheader("🛠️ Teste de Relatório Gerencial (Modelo)")

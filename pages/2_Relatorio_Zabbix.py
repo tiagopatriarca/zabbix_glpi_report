@@ -2,23 +2,44 @@ import streamlit as st
 import pandas as pd
 import datetime
 import plotly.express as px
-from utils.config import get_zabbix_config
+from utils.database import get_clients_for_user, get_zabbix_configs
 from utils.zabbix_api import ZabbixClient
-from utils.pdf_generator import A4ReportPDF
 import io
+import os
+import uuid
 
 st.set_page_config(page_title="Relatório Zabbix", page_icon="📈", layout="wide")
 
+if not st.session_state.get('user'):
+    st.warning("Por favor, faça login na tela inicial.")
+    st.stop()
+
 st.title("📈 Relatório de Infraestrutura - Zabbix")
 
-cfg = get_zabbix_config()
-if not cfg.get("url") or not cfg.get("user") or not cfg.get("password"):
-    st.warning("Configurações do Zabbix não encontradas. Vá até a aba de Configurações.")
+# --- Seleção de Cliente e Integração ---
+user = st.session_state.user
+clientes = get_clients_for_user(user['id'], user['is_admin'])
+
+if not clientes:
+    st.warning("Você não tem acesso a nenhum cliente.")
     st.stop()
+
+client_dict = {c['name']: c['id'] for c in clientes}
+selected_client = st.sidebar.selectbox("1. Selecione o Cliente", options=list(client_dict.keys()))
+client_id = client_dict[selected_client]
+
+configs = get_zabbix_configs(client_id)
+if not configs:
+    st.warning("Este cliente não possui integrações Zabbix cadastradas.")
+    st.stop()
+
+config_dict = {cfg['name']: cfg for cfg in configs}
+selected_config_name = st.sidebar.selectbox("2. Selecione a Instância Zabbix", options=list(config_dict.keys()))
+cfg = config_dict[selected_config_name]
 
 # Initialize Zabbix Client
 try:
-    zapi = ZabbixClient(cfg["url"], cfg["user"], cfg["password"])
+    zapi = ZabbixClient(cfg["url"], cfg["username"], cfg["password"])
 except Exception as e:
     st.error(f"Erro ao conectar no Zabbix: {e}")
     st.stop()
@@ -240,7 +261,7 @@ if generate_btn:
         dados_gerenciais = {
             "relatorio": {
                 "cabecalho": {
-                    "empresa": "TI Plus",
+                    "empresa": selected_client,
                     "logo_url": "data/logo.png",
                     "tipo_documento": "RELATÓRIO TÉCNICO",
                     "data": datetime.date.today().strftime("%d/%m/%Y")
@@ -250,7 +271,7 @@ if generate_btn:
                     "subtitulo": f"Infraestrutura de TI e Serviços Técnicos - {selected_host_name}"
                 },
                 "rodape": {
-                    "texto": "TI Plus - Gestão de infraestrutura",
+                    "texto": f"{selected_client} - Gestão de infraestrutura",
                     "exibir_paginacao": True
                 }
             }
