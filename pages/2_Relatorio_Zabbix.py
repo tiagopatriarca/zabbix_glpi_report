@@ -96,7 +96,7 @@ if generate_btn:
                         df = zapi.get_history_data(item["itemid"], item["value_type"], start_dt, end_dt)
                         if not df.empty:
                             has_data = True
-                            fig.add_scatter(x=df["time"], y=df["value"], mode="lines", name=item["name"])
+                            fig.add_scatter(x=df["time"], y=df["value"], mode="lines", fill="tozeroy", name=item["name"])
                     if not has_data:
                         st.warning(f"Sem dados de histórico para {title}")
                         return None
@@ -108,6 +108,7 @@ if generate_btn:
                         st.warning(f"Sem dados de histórico para {item['name']}")
                         return None
                     fig = px.line(df, x="time", y="value", title=f"{title} - {item['name']}")
+                    fig.update_traces(fill="tozeroy", line_color="#00bfa0")
                     if item["units"]:
                         fig.update_yaxes(title_text=item["units"])
                         
@@ -125,7 +126,11 @@ if generate_btn:
                     return None
                     
             if fig:
-                fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
+                fig.update_layout(
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    plot_bgcolor="rgba(240,240,240,0.3)",
+                    paper_bgcolor="white"
+                )
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # Salvar imagem para o PDF
@@ -151,7 +156,7 @@ if generate_btn:
         st.markdown("#### Discos")
         col_disk1, col_disk2 = st.columns(2)
         with col_disk1:
-            plot_metric(["Space utilization", "Free disk space", "Used disk space", "Espaço livre", "Espaço utilizado", "Uso de disco", "Disco", "Disk", "vfs.fs"], "Espaço em Disco", chart_type="pie")
+            plot_metric(["Space utilization", "Percentage of space", "Used space", "Espaço livre", "Espaço utilizado", "Uso de disco", "pused", "vfs.fs.size"], "Espaço em Disco", chart_type="pie")
             
         # Linha 3: Placas de Rede (Agrupadas por Interface)
         st.markdown("#### Tráfego de Rede")

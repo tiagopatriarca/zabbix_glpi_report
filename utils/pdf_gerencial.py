@@ -14,7 +14,7 @@ class A4GerencialPDF(FPDF):
         logo_url = cabecalho.get("logo_url", "")
         if logo_url and os.path.exists(logo_url):
             try:
-                self.image(logo_url, 10, 8, 33)
+                self.image(logo_url, 10, 8, h=15)
             except:
                 pass
                 
