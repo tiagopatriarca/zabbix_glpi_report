@@ -115,3 +115,35 @@ def get_glpi_configs(client_id):
     configs = [dict(row) for row in c.fetchall()]
     conn.close()
     return configs
+
+def update_client(client_id, name):
+    conn = get_db()
+    conn.execute("UPDATE clients SET name = ? WHERE id = ?", (name, client_id))
+    conn.commit()
+    conn.close()
+
+def update_zabbix_config(config_id, name, url, username, password):
+    conn = get_db()
+    conn.execute("UPDATE zabbix_configs SET name = ?, url = ?, username = ?, password = ? WHERE id = ?", 
+                 (name, url, username, password, config_id))
+    conn.commit()
+    conn.close()
+
+def update_glpi_config(config_id, name, url, user_token, app_token):
+    conn = get_db()
+    conn.execute("UPDATE glpi_configs SET name = ?, url = ?, user_token = ?, app_token = ? WHERE id = ?", 
+                 (name, url, user_token, app_token, config_id))
+    conn.commit()
+    conn.close()
+
+def update_user(user_id, username, password, is_admin):
+    conn = get_db()
+    if password:
+        pwd_hash = hash_password(password)
+        conn.execute("UPDATE users SET username = ?, password_hash = ?, is_admin = ? WHERE id = ?", 
+                     (username, pwd_hash, is_admin, user_id))
+    else:
+        conn.execute("UPDATE users SET username = ?, is_admin = ? WHERE id = ?", 
+                     (username, is_admin, user_id))
+    conn.commit()
+    conn.close()
